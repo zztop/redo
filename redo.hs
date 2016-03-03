@@ -21,10 +21,7 @@ main =  getArgs >>= mapM_ redo
 
 redo :: String -> IO ()
 redo target = do 
-	removeDirectoryRecursive depsDir
-	createDirectoryIfMissing True depsDir
-	targetMd5 <- md5' target
-	writeFile (depsDir </> target) targetMd5
+
 	let tmp = target ++ "---redoing"
 	hasUpdated <-  hasFilesUpdated target
 	unless hasUpdated $
@@ -33,7 +30,10 @@ redo target = do
 			case targetPath of
 		  		Nothing -> error "files not present"
 		  		Just targetPath -> do
-		  						putStrLn targetPath
+		  						removeDirectoryRecursive depsDir
+								createDirectoryIfMissing True depsDir
+								targetMd5 <- md5' targetPath
+								writeFile (depsDir </> targetPath) targetMd5
 		  						oldEnv <- getEnvironment
 							  	(_, _, _, ph) <- createProcess (shell  $ cmd targetPath){env = Just ( ("REDO_TARGET", target) : oldEnv)}
 							  	exit <- waitForProcess ph
@@ -42,8 +42,10 @@ redo target = do
 								   	ExitFailure code -> do
 							   						hPutStrLn stderr $ "Redo script exited with non zero code" ++ show code
 							   						removeFile tmp
-							   	where cmd targetPath = trace' $ "sh " ++ targetPath ++ " 0 " ++ " " ++ takeBaseName target ++ " " ++ tmp ++ " > " ++ tmp
-	where depsDir = ".redo" </> target
+							   	where 
+							   		cmd targetPath = trace' $ "sh -x " ++ targetPath ++ " 0 " ++ " " ++ takeBaseName target ++ " " ++ tmp ++ " > " ++ tmp
+							   		depsDir = ".redo" </> target
+
 
 
 redoPath :: FilePath -> IO (Maybe FilePath)
@@ -60,7 +62,10 @@ hasFilesUpdated dep = do
 hasFileUpdated :: FilePath -> FilePath -> IO Bool
 hasFileUpdated dep target  = do
 	oldMD5 <- withFile dep ReadMode hGetLine
-	newMD5 <- md5' target
+	putStrLn $ "oldMD5 file :" ++ oldMD5
+	putStrLn $ "file updated target file :" ++ target
+	newMD5 <- md5' $ target
+	putStrLn $ "file updated hash :" ++ newMD5
 	return $ oldMD5 == newMD5
 
 
